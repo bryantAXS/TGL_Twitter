@@ -348,22 +348,22 @@ class Tgl_twitter
      */
     function _fetch_data($url)
     {
-        $rawxml     = '';
-        $cached_xml = $this->_check_cache($url);
+        $rawdata     = '';
+        $cached_data = $this->_check_cache($url);
 
-        if ($this->cache_expired OR ! $cached_xml)
+        if ($this->cache_expired OR ! $cached_data)
         {
             $this->EE->TMPL->log_item("Fetching Twitter timeline remotely");
-            $rawxml = $this->_fetch_remote($url);
+            $rawdata = $this->_fetch_remote($url);
         }
 
         // Attempt to parse the data we have
-        $xml_obj = $this->api_version != '1' ? $this->_check_json($rawxml) : $this->_check_xml($rawxml);
+        $data_obj = $this->api_version != '1' ? $this->_check_json($rawdata) : $this->_check_xml($rawdata);
 
-        if (! $xml_obj)
+        if (! $data_obj)
         {
             // Did we try to grab new data? Tell them that it failed.
-            if (! $cached_xml OR $this->cache_expired)
+            if (! $cached_data OR $this->cache_expired)
             {
                 $this->EE->TMPL->log_item("Twitter Timeline Error: Unable to retrieve statuses from Twitter.com");
 
@@ -371,13 +371,13 @@ class Tgl_twitter
                 // We definitely need to write a cache file so we don't continue
                 // to ask Twitter for data on every request.
 
-                if (! $cached_xml && $this->rate_limit_hit)
+                if (! $cached_data && $this->rate_limit_hit)
                 {
-                    $this->_write_cache($rawxml, $url);
+                    $this->_write_cache($rawdata, $url);
                 }
 
                 // Try to parse cache? Is it worth it?
-                if ($this->use_stale != 'yes' OR ! $cached_xml)
+                if ($this->use_stale != 'yes' OR ! $cached_data)
                 {
                     return FALSE;
                 }
@@ -390,7 +390,7 @@ class Tgl_twitter
             }
 
             // Check the cache
-            $xml_obj = $this->api_version != '1' ? $this->_check_json($cached_xml) : $this->_check_xml($cached_xml);
+            $data_obj = $this->api_version != '1' ? $this->_check_json($cached_data) : $this->_check_xml($cached_data);
 
             // If we're hitting twitter's rate limit,
             // refresh the cache timestamp, even if the cache file
@@ -398,10 +398,10 @@ class Tgl_twitter
 
             if ($this->rate_limit_hit && $this->cache_expired)
             {
-                $this->_write_cache($cached_xml, $url);
+                $this->_write_cache($cached_data, $url);
             }
 
-            if (! $xml_obj)
+            if (! $data_obj)
             {
                 $this->EE->TMPL->log_item("Twitter Timeline Error: Invalid Cache File");
                 return FALSE;
@@ -410,11 +410,11 @@ class Tgl_twitter
         else
         {
             // We have (valid) new data - cache it
-            $this->_write_cache($rawxml, $url);
+            $this->_write_cache($rawdata, $url);
         }
 
         // Grab the statuses
-        $statuses = $this->api_version != '1' ? $this->_parse_json($xml_obj) : $this->_parse_xml($xml_obj);
+        $statuses = $this->api_version != '1' ? $this->_parse_json($data_obj) : $this->_parse_xml($data_obj);
 
         if (! is_array($statuses) OR count($statuses) == 0)
         {
