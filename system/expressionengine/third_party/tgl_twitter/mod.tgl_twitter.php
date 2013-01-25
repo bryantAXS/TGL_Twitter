@@ -20,7 +20,8 @@ require_once PATH_THIRD . 'tgl_twitter/classes/twitteroauth.php';
 class Tgl_twitter
 {
     var $return_data = '';
-    var $base_url = 'http://api.twitter.com/1/statuses/';
+    var $api_version = '1.1';
+    var $base_url = 'http://api.twitter.com/';
     var $cache_name = 'twitter_timeline_cache';
     var $cache_expired = FALSE;
     var $rate_limit_hit = FALSE;
@@ -38,6 +39,17 @@ class Tgl_twitter
      *
      * @access    public
      */
+    function Tgl_twitter()
+    {
+        // Adding an old-style constructor allows use on older installs of EE2.
+        Tgl_twitter::__construct();
+    }
+
+    /**
+     * Constructor
+     *
+     * @access    public
+     */
     function __construct()
     {
         $this->EE =& get_instance();
@@ -48,11 +60,11 @@ class Tgl_twitter
         $this->limit       = $this->EE->TMPL->fetch_param('limit', $this->limit);
         $this->use_stale   = $this->EE->TMPL->fetch_param('use_stale_cache', 'yes');
         $this->screen_name = $this->EE->TMPL->fetch_param('screen_name');
+        $this->api_version = $this->EE->TMPL->fetch_param('api', '1.1');
         $create_links      = $this->EE->TMPL->fetch_param('create_links', '');
         $link_target       = $this->EE->TMPL->fetch_param('link_target', '');
 
         // create_links="user_mentions|hashtags|urls|media"
-
         $create_links = explode('|', $create_links);
 
         foreach ($create_links as $name)
@@ -80,8 +92,9 @@ class Tgl_twitter
         $this->EE->TMPL->log_item("Using '{$timeline}' Twitter Timeline {$log_extra}");
 
         // build url
-
-        $url = $this->base_url . $timeline . '_timeline.xml';
+        $this->base_url = $this->base_url . $this->api_version . '/statuses/';
+        $url            = $this->base_url . $timeline . '_timeline';
+        $url .= $this->api_version != '1' ? '.json' : '.xml';
 
         if (count($this->parameters))
         {
@@ -354,7 +367,7 @@ class Tgl_twitter
         }
 
         // Attempt to parse the data we have
-        $xml_obj = $this->_check_xml($rawxml);
+        $xml_obj = $this->api_version != '1' ? $this->_check_json($rawxml) : $this->_check_xml($rawxml);
 
         if (! $xml_obj)
         {
@@ -386,7 +399,7 @@ class Tgl_twitter
             }
 
             // Check the cache
-            $xml_obj = $this->_check_xml($cached_xml);
+            $xml_obj = $this->api_version != '1' ? $this->_check_json($cached_xml) : $this->_check_xml($cached_xml);
 
             // If we're hitting twitter's rate limit,
             // refresh the cache timestamp, even if the cache file
@@ -410,7 +423,7 @@ class Tgl_twitter
         }
 
         // Grab the statuses
-        $statuses = $this->_parse_xml($xml_obj);
+        $statuses = $this->api_version != '1' ? $this->_parse_json($xml_obj) : $this->_parse_xml($xml_obj);
 
         if (! is_array($statuses) OR count($statuses) == 0)
         {
@@ -474,6 +487,36 @@ class Tgl_twitter
     // --------------------------------------------------------------------
 
     /**
+     * Check JSON
+     *
+     * Checks the JSON for validity and also looks for errors in the data.
+     *
+     * @access    public
+     *
+     * @param    object
+     *
+     * @return    array
+     */
+    function _check_json($raw_json)
+    {
+        if (isset($raw_json->errors) && ! empty($raw_json->errors))
+        {
+            foreach ($raw_json->errors as $error)
+            {
+                if ($error->code == 88 || $error->message == "Rate limit exceeded")
+                {
+                    $this->rate_limit_hit = TRUE;
+                }
+                $this->EE->TMPL->log_item("Twitter Timeline error: " . $error->message);
+            }
+            return FALSE;
+        }
+        return $raw_json;
+    }
+
+    // --------------------------------------------------------------------
+
+    /**
      * Parse XML
      *
      * Preps the Twitter returned xml data
@@ -526,6 +569,68 @@ class Tgl_twitter
 
     // --------------------------------------------------------------------
 
+    /**
+     * Parse Json
+     *
+     * Type converts all JSON objects to array for compactibility with the good old xml based timeline
+     *
+     * @access    public
+     *
+     * @param    object
+     *
+     * @return    array
+     */
+    function _parse_json($json_obj)
+    {
+
+        // the json only needs recurrsively parsing to an array to enhance compactibillity
+        if (! is_array($json_obj) OR count($json_obj) == 0)
+        {
+            return FALSE;
+        }
+
+        $statuses = array();
+        foreach ($json_obj as $tweet_obj)
+        {
+            $statuses[] = $this->_object_to_array($tweet_obj);
+        }
+
+        return $statuses;
+    }
+
+    /**
+     * Object to array
+     *
+     * Type converts all objects to array, helper for the _parse_json method
+     *
+     * @access    private
+     *
+     * @param    object
+     *
+     * @return    array
+     */
+    private function _object_to_array($obj)
+    {
+        if (is_object($obj))
+        {
+            $obj = (array) $obj;
+        }
+        if (is_array($obj))
+        {
+            $new = array();
+            foreach ($obj as $key => $val)
+            {
+                $new[$key] = $this->_object_to_array($val);
+            }
+        }
+        else
+        {
+            $new = $obj;
+        }
+        return $new;
+    }
+
+    // --------------------------------------------------------------------
     /**
      * Parse Entities
      *
@@ -619,6 +724,13 @@ class Tgl_twitter
             $this->cache_expired = TRUE;
         }
 
+        // Convert the json data if needed
+        $json_data = json_decode($cache);
+        if(json_last_error() == JSON_ERROR_NONE )
+        {
+            $cache = $json_data;
+        }
+
         return $cache;
     }
 
@@ -637,6 +749,13 @@ class Tgl_twitter
      */
     function _write_cache($data, $url)
     {
+        // Convert the json data if needed
+        $json_data = json_encode($data);
+        if(json_last_error() == JSON_ERROR_NONE && !empty($json_data))
+        {
+            $data = $json_data;
+        }
+
         // Check for cache directory
 
         $dir = APPPATH . 'cache/' . $this->cache_name . '/';
@@ -698,13 +817,11 @@ class Tgl_twitter
         $access_token_secret = $settings['access_token_secret'];
 
         // Create our twitter API object
-        $oauth         = new TwitterOAuth($settings['consumer_key'], $settings['consumer_secret'], $access_token, $access_token_secret);
-        $oauth->format = 'xml';
+        $oauth         = new TwitterOAuth($settings['consumer_key'], $settings['consumer_secret'], $this->api_version, $access_token, $access_token_secret);
+        $oauth->format = $this->api_version != '1' ? 'json' : 'xml';
 
         $params = array('include_rts' => 'true', 'include_entities' => 'true', 'screen_name' => $this->screen_name);
         $data   = $oauth->get("statuses/user_timeline", $params);
-
-        //print_r($data);
 
         return $data;
     }
