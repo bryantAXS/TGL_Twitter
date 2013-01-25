@@ -59,9 +59,9 @@ class TwitterOAuth
     /**
      * construct TwitterOAuth object
      */
-    function __construct($consumer_key, $consumer_secret, $api_version, $oauth_token = NULL, $oauth_token_secret = NULL)
+    function __construct($consumer_key, $consumer_secret, $url, $oauth_token = NULL, $oauth_token_secret = NULL)
     {
-        $this->host        = 'https://api.twitter.com/' . $api_version . '/';
+        $this->host        = $url;
         $this->sha1_method = new OAuthSignatureMethod_HMAC_SHA1();
         $this->consumer    = new OAuthConsumer($consumer_key, $consumer_secret);
         if (! empty($oauth_token) && ! empty($oauth_token_secret))
@@ -177,9 +177,9 @@ class TwitterOAuth
     function get($url, $parameters = array())
     {
         $response = $this->oAuthRequest($url, 'GET', $parameters);
-        if ($this->format === 'json' && $this->decode_json)
+        if ($this->format === 'json' && $this->decode_json && ($json_response = json_decode($response)) && json_last_error() == JSON_ERROR_NONE)
         {
-            return json_decode($response);
+            return $json_response;
         }
         return $response;
     }
@@ -190,9 +190,9 @@ class TwitterOAuth
     function post($url, $parameters = array())
     {
         $response = $this->oAuthRequest($url, 'POST', $parameters);
-        if ($this->format === 'json' && $this->decode_json)
+        if ($this->format === 'json' && $this->decode_json && ($json_response = json_decode($response)) && json_last_error() == JSON_ERROR_NONE)
         {
-            return json_decode($response);
+            return $json_response;
         }
         return $response;
     }
@@ -203,9 +203,9 @@ class TwitterOAuth
     function delete($url, $parameters = array())
     {
         $response = $this->oAuthRequest($url, 'DELETE', $parameters);
-        if ($this->format === 'json' && $this->decode_json)
+        if ($this->format === 'json' && $this->decode_json && ($json_response = json_decode($response)) && json_last_error() == JSON_ERROR_NONE)
         {
-            return json_decode($response);
+            return $json_response;
         }
         return $response;
     }
@@ -237,42 +237,54 @@ class TwitterOAuth
      */
     function http($url, $method, $postfields = NULL)
     {
-        $this->http_info = array();
-        $ci              = curl_init();
-        /* Curl settings */
-        curl_setopt($ci, CURLOPT_USERAGENT, $this->useragent);
-        curl_setopt($ci, CURLOPT_CONNECTTIMEOUT, $this->connecttimeout);
-        curl_setopt($ci, CURLOPT_TIMEOUT, $this->timeout);
-        curl_setopt($ci, CURLOPT_RETURNTRANSFER, TRUE);
-        curl_setopt($ci, CURLOPT_HTTPHEADER, array('Expect:'));
-        curl_setopt($ci, CURLOPT_SSL_VERIFYPEER, $this->ssl_verifypeer);
-        curl_setopt($ci, CURLOPT_HEADERFUNCTION, array($this, 'getHeader'));
-        curl_setopt($ci, CURLOPT_HEADER, FALSE);
-
-        switch ($method)
+        if (function_exists('curl_init'))
         {
-            case 'POST':
-                curl_setopt($ci, CURLOPT_POST, TRUE);
-                if (! empty($postfields))
-                {
-                    curl_setopt($ci, CURLOPT_POSTFIELDS, $postfields);
-                }
-                break;
-            case 'DELETE':
-                curl_setopt($ci, CURLOPT_CUSTOMREQUEST, 'DELETE');
-                if (! empty($postfields))
-                {
-                    $url = "{$url}?{$postfields}";
-                }
-        }
+            $this->http_info = array();
+            $ci              = curl_init();
 
-        curl_setopt($ci, CURLOPT_URL, $url);
-        $response        = curl_exec($ci);
-        $this->http_code = curl_getinfo($ci, CURLINFO_HTTP_CODE);
-        $this->http_info = array_merge($this->http_info, curl_getinfo($ci));
-        $this->url       = $url;
-        curl_close($ci);
-        return $response;
+            /* Curl settings */
+            $curl_options = array(
+                CURLOPT_USERAGENT      => $this->useragent,
+                CURLOPT_CONNECTTIMEOUT => $this->connecttimeout,
+                CURLOPT_TIMEOUT        => $this->timeout,
+                CURLOPT_RETURNTRANSFER => TRUE,
+                CURLOPT_HTTPHEADER     => array('Expect:'),
+                CURLOPT_SSL_VERIFYPEER => $this->ssl_verifypeer,
+                CURLOPT_HEADERFUNCTION => array($this, 'getHeader'),
+                CURLOPT_HEADER         => FALSE,
+                CURLOPT_URL            => $url
+            );
+            curl_setopt_array($ci, $curl_options);
+            switch ($method)
+            {
+                case 'POST':
+                    curl_setopt($ci, CURLOPT_POST, TRUE);
+                    if (! empty($postfields))
+                    {
+                        curl_setopt($ci, CURLOPT_POSTFIELDS, $postfields);
+                    }
+                    break;
+                case 'DELETE':
+                    curl_setopt($ci, CURLOPT_CUSTOMREQUEST, 'DELETE');
+                    if (! empty($postfields))
+                    {
+                        $url = "{$url}?{$postfields}";
+                    }
+                    break;
+            }
+            $response        = curl_exec($ci);
+            $this->http_code = curl_getinfo($ci, CURLINFO_HTTP_CODE);
+            $this->http_info = array_merge($this->http_info, curl_getinfo($ci));
+            $this->url       = $url;
+            curl_close($ci);
+
+            return $response;
+        }
+        $data = file_get_contents($url);
+        if (! empty($data))
+        {
+            return $data;
+        }
     }
 
     /**

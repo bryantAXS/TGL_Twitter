@@ -21,7 +21,7 @@ class Tgl_twitter
 {
     var $return_data = '';
     var $api_version = '1.1';
-    var $base_url = 'http://api.twitter.com/';
+    var $base_url = 'https://api.twitter.com/';
     var $cache_name = 'twitter_timeline_cache';
     var $cache_expired = FALSE;
     var $rate_limit_hit = FALSE;
@@ -31,7 +31,6 @@ class Tgl_twitter
     var $months = array('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
     var $entities = array('user_mentions' => FALSE, 'urls' => FALSE, 'hashtags' => FALSE, 'media' => FALSE);
     var $use_stale;
-    var $time_limit = 5; // Max time in seconds to allow curl/fsockopen connection.
     var $screen_name = '';
 
     /**
@@ -355,15 +354,7 @@ class Tgl_twitter
         if ($this->cache_expired OR ! $cached_xml)
         {
             $this->EE->TMPL->log_item("Fetching Twitter timeline remotely");
-
-            if (function_exists('curl_init'))
-            {
-                $rawxml = $this->_curl_fetch($url);
-            }
-            else
-            {
-                $rawxml = $this->_fsockopen_fetch($url);
-            }
+            $rawxml = $this->_fetch_remote($url);
         }
 
         // Attempt to parse the data we have
@@ -803,12 +794,8 @@ class Tgl_twitter
      *
      * @return    string
      */
-    function _curl_fetch($url)
+    function _fetch_remote($url)
     {
-        $data = '';
-
-        //this is where we have modified the plugin to fetch our data via oauth
-
         $this->EE->load->model('tgl_twitter_model');
         $settings = $this->EE->tgl_twitter_model->get_settings();
 
@@ -817,63 +804,14 @@ class Tgl_twitter
         $access_token_secret = $settings['access_token_secret'];
 
         // Create our twitter API object
-        $oauth         = new TwitterOAuth($settings['consumer_key'], $settings['consumer_secret'], $this->api_version, $access_token, $access_token_secret);
+        $oauth         = new TwitterOAuth($settings['consumer_key'], $settings['consumer_secret'], $url, $access_token, $access_token_secret);
         $oauth->format = $this->api_version != '1' ? 'json' : 'xml';
 
         $params = array('include_rts' => 'true', 'include_entities' => 'true', 'screen_name' => $this->screen_name);
-        $data   = $oauth->get("statuses/user_timeline", $params);
 
-        return $data;
+        return $oauth->get("statuses/user_timeline", $params);
     }
 
-    // --------------------------------------------------------------------
-
-    /**
-     * fsockopen Fetch
-     *
-     * Fetch Twitter statuses using fsockopen
-     *
-     * @access    public
-     *
-     * @param    string
-     *
-     * @return    string
-     */
-    function _fsockopen_fetch($url)
-    {
-        $target = parse_url($url);
-
-        $data = '';
-
-        $fp = fsockopen($target['host'], 80, $error_num, $error_str, 8);
-
-        if (is_resource($fp))
-        {
-            fputs($fp, "GET {$url} HTTP/1.0\r\n");
-            fputs($fp, "Host: {$target['host']}\r\n");
-            fputs($fp, "User-Agent: EE/EllisLab PHP/" . phpversion() . "\r\n\r\n");
-
-            $headers = TRUE;
-
-            while (! feof($fp))
-            {
-                $line = fgets($fp, 4096);
-
-                if ($headers === FALSE)
-                {
-                    $data .= $line;
-                }
-                elseif (trim($line) == '')
-                {
-                    $headers = FALSE;
-                }
-            }
-
-            fclose($fp);
-        }
-
-        return $data;
-    }
 
     // --------------------------------------------------------------------
 
