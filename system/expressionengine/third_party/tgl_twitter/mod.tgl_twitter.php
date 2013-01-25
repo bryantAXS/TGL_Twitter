@@ -726,7 +726,7 @@ class Tgl_twitter
 
         // Convert the json data if needed
         $json_data = json_decode($cache);
-        if(json_last_error() == JSON_ERROR_NONE )
+        if (json_last_error() == JSON_ERROR_NONE)
         {
             $cache = $json_data;
         }
@@ -751,7 +751,7 @@ class Tgl_twitter
     {
         // Convert the json data if needed
         $json_data = json_encode($data);
-        if(json_last_error() == JSON_ERROR_NONE && !empty($json_data))
+        if (json_last_error() == JSON_ERROR_NONE && ! empty($json_data))
         {
             $data = $json_data;
         }
