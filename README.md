@@ -1,6 +1,9 @@
+A more current fork of this add-on can be found here: https://github.com/click-rain/EE_Twitter/
+
+
 #TGL Twitter
 
-TGL Twitter is nearly an identical port of EllisLabs Twitter Timeline plugin, however TGL Twitter has a CP Backend, allowing a user to authenticate with Twitter using oAuth.  
+TGL Twitter is nearly an identical port of EllisLabs Twitter Timeline plugin, however TGL Twitter has a CP Backend, allowing a user to authenticate with Twitter using oAuth.
 
 The initial reason for building this was because Twitter's Streaming API, which does not require authentication, limits your request by IP Address.  On a shared hosting setup, where many sites can be run off of one IP Address, this presents a problem.
 
