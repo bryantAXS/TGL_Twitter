@@ -808,8 +808,15 @@ class Tgl_twitter
         $oauth->format = $this->api_version != '1' ? 'json' : 'xml';
 
         $params = array('include_rts' => 'true', 'include_entities' => 'true', 'screen_name' => $this->screen_name);
-
-        return $oauth->get("statuses/user_timeline", $params);
+        try
+        {
+            return $oauth->get("statuses/user_timeline", $params);
+        }
+        catch (TwitterException $ex)
+        {
+            $this->EE->TMPL->log_item("Twitter Timeline error: " . $ex->getMessage());
+            return FALSE;
+        }
     }
 
 

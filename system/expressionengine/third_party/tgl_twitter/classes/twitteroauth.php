@@ -9,6 +9,10 @@
 /* Load OAuth lib. You can find it at http://oauth.net */
 require_once('OAuth.php');
 
+class TwitterException extends Exception
+{
+}
+
 /**
  * Twitter OAuth class
  */
@@ -170,16 +174,46 @@ class TwitterOAuth
     }
 
     /**
-     * GET wrapper for oAuthRequest.
+     * Wrapper for oAuthRequest.
+     */
+    function do_request($method, $url, $parameters = array())
+    {
+        $response = $this->oAuthRequest($url, $method, $parameters);
+        if ($this->format === 'json')
+        {
+            if ($this->decode_json)
+            {
+                $json_response = json_decode($response);
+                if (json_last_error() == JSON_ERROR_NONE)
+                {
+                    return $json_response;
+                }
+                else
+                {
+                    throw new TwitterException("Couldn't decode JSON response");
+                }
+            }
+            else
+            {
+                return $reponse;
+            }
+        }
+        else if ($this->format === 'xml')
+        {
+            return $response;
+        }
+        else
+        {
+            throw new TwitterException("Unexpected response format received");
+        }
+    }
+
+    /**
+     *  GET wrapper for oAuthRequest.
      */
     function get($url, $parameters = array())
     {
-        $response = $this->oAuthRequest($url, 'GET', $parameters);
-        if ($this->format === 'json' && $this->decode_json && ($json_response = json_decode($response)) && json_last_error() == JSON_ERROR_NONE)
-        {
-            return $json_response;
-        }
-        return $response;
+        return $this->do_request("GET", $url, $parameters);
     }
 
     /**
@@ -187,12 +221,7 @@ class TwitterOAuth
      */
     function post($url, $parameters = array())
     {
-        $response = $this->oAuthRequest($url, 'POST', $parameters);
-        if ($this->format === 'json' && $this->decode_json && ($json_response = json_decode($response)) && json_last_error() == JSON_ERROR_NONE)
-        {
-            return $json_response;
-        }
-        return $response;
+        return $this->do_request("POST", $url, $parameters);
     }
 
     /**
@@ -200,12 +229,7 @@ class TwitterOAuth
      */
     function delete($url, $parameters = array())
     {
-        $response = $this->oAuthRequest($url, 'DELETE', $parameters);
-        if ($this->format === 'json' && $this->decode_json && ($json_response = json_decode($response)) && json_last_error() == JSON_ERROR_NONE)
-        {
-            return $json_response;
-        }
-        return $response;
+        return $this->do_request("DELETE", $url, $parameters);
     }
 
     /**
@@ -279,8 +303,8 @@ class TwitterOAuth
         // Use custom context because of the custom user-agent header.
         $opts = array(
             'http' => array(
-                'method' => "GET",
-                'header' => "User-Agent:" . $this->useragent . "\r\n",
+                'method'  => "GET",
+                'header'  => "User-Agent:" . $this->useragent . "\r\n",
                 'timeout' => $this->timeout
             )
         );
