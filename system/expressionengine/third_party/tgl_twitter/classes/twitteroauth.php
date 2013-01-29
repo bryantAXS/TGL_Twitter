@@ -21,9 +21,7 @@ class TwitterOAuth
     /* Set up the API root URL. */
     public $host = "https://api.twitter.com/1.1/";
     /* Set timeout default. */
-    public $timeout = 30;
-    /* Set connect timeout. */
-    public $connecttimeout = 30;
+    public $timeout = 10;
     /* Verify SSL Cert. */
     public $ssl_verifypeer = TRUE;
     /* Respons format. */
@@ -245,7 +243,6 @@ class TwitterOAuth
             /* Curl settings */
             $curl_options = array(
                 CURLOPT_USERAGENT      => $this->useragent,
-                CURLOPT_CONNECTTIMEOUT => $this->connecttimeout,
                 CURLOPT_TIMEOUT        => $this->timeout,
                 CURLOPT_RETURNTRANSFER => TRUE,
                 CURLOPT_HTTPHEADER     => array('Expect:'),
@@ -283,7 +280,8 @@ class TwitterOAuth
         $opts = array(
             'http' => array(
                 'method' => "GET",
-                'header' => "User-Agent:" . $this->useragent . "\r\n"
+                'header' => "User-Agent:" . $this->useragent . "\r\n",
+                'timeout' => $this->timeout
             )
         );
 
