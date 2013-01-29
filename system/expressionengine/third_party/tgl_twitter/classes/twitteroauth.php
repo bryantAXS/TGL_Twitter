@@ -277,10 +277,18 @@ class TwitterOAuth
             $this->http_info = array_merge($this->http_info, curl_getinfo($ci));
             $this->url       = $url;
             curl_close($ci);
-
             return $response;
         }
-        $data = file_get_contents($url);
+        // Use custom context because of the custom user-agent header.
+        $opts = array(
+            'http' => array(
+                'method' => "GET",
+                'header' => "User-Agent:" . $this->useragent . "\r\n"
+            )
+        );
+
+        $context = stream_context_create($opts);
+        $data    = file_get_contents($url, FALSE, $context);
         if (! empty($data))
         {
             return $data;
